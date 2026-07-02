@@ -3,6 +3,7 @@ const Analytics = require("../models/analytics");
 
 const generateShortCode = require("../utils/generateShortCode");
 const collectAnalytics = require("../utils/collectAnalytics");
+const resolvesToPrivateIP = require("../utils/isPrivateIP");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
 
@@ -13,8 +14,9 @@ exports.shortenUrl = catchAsync(async (req, res, next) => {
     return next(AppError("Please provide a valid URL", 400));
   }
   // Validate the URL format
+  let parsedUrl;
   try {
-    const parsedUrl = new URL(url);
+    parsedUrl = new URL(url);
 
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
       return next(
@@ -23,6 +25,16 @@ exports.shortenUrl = catchAsync(async (req, res, next) => {
     }
   } catch (err) {
     return next(AppError("Please provide a valid URL", 400));
+  }
+
+  // Check if the URL resolves to a private IP address
+  if (await resolvesToPrivateIP(parsedUrl.hostname)) {
+    return next(
+      AppError(
+        "URLs pointing to internal/private addresses are not allowed",
+        400,
+      ),
+    );
   }
 
   // Check if the URL already exists in the database
